@@ -9,6 +9,19 @@ from flask import Flask, render_template, request
 from tkinter import E
 from flask_pymongo import pymongo
 import warnings
+import math
+import pandas_datareader as web
+import numpy as np
+import pandas as pd
+import datetime
+import jsonify
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential
+from keras.layers import Dense,LSTM
+import matplotlib.pyplot as plt
+plt.style.use('fivethirtyeight')
+import yfinance as yf
+yf.pdr_override()
 
 
 
@@ -16,88 +29,85 @@ import warnings
 
 def project_api_routes(endpoints):
 
- @endpoints.route('/login',methods=['POST','GET'])
- def login():
-  global f
-  if request.method=='POST':
-   f=request.values['name']
-   return 'data posted succesfully'
-  if request.method=='GET':
-   return f
-  
  @endpoints.route('/upload',methods=['POST','GET'])
+
  def upload_file():
+
   if request.method=="POST":
-    global df
-    global a
-    f=request.files['file']
-    a=request.values['number']
-    f.save(secure_filename(f.filename))
-    df=pd.read_csv(f.filename)
-    return 'file uploaded successfully'
-  if request.method=="GET":
-   a=int(a)
-   df.head()
-   df.columns=["Month","Sales"]
-   df.head()
-   df.isnull().sum()
-   df.tail()
-   df['Month']=pd.to_datetime(df['Month'])
-   df.set_index('Month',inplace=True)
-   df.describe()
-   df.info()
-   df.shape
-   from statsmodels.tsa.stattools import adfuller
-   test_result=adfuller(df['Sales'])
-   def adfuller_test(sales):
-    result=adfuller(sales)
-    labels = ['ADF Test Statistic','p-value','#Lags Used','Number of Observations Used']
-    for value,label in zip(result,labels):
-        print(label+' : '+str(value) )
-    if result[1] <= 0.05:
-        print("strong evidence against the null hypothesis(Ho), reject the null hypothesis. Data has no unit root and is stationary")
-    else:
-        print("weak evidence against null hypothesis, time series has a unit root, indicating it is non-stationary ")
-   adfuller_test(df['Sales'])
-   df['Sales First Difference'] = df['Sales'] - df['Sales'].shift(1)
-   df['Sales'].shift(1)
-   df['Seasonal First Difference']=df['Sales']-df['Sales'].shift(12)
-   adfuller_test(df['Seasonal First Difference'].dropna())
-   df['Seasonal First Difference'].plot()
-   from pandas.plotting import autocorrelation_plot
-   autocorrelation_plot(df['Sales'])
-   from statsmodels.graphics.tsaplots import plot_acf,plot_pacf
-   fig = plt.figure(figsize=(12,8))
-   ax1 = fig.add_subplot(211)
-   fig = sm.graphics.tsa.plot_acf(df['Seasonal First Difference'].iloc[13:],lags=40,ax=ax1)
-   ax2 = fig.add_subplot(212)
-   fig = sm.graphics.tsa.plot_pacf(df['Seasonal First Difference'].iloc[13:],lags=40,ax=ax2)
-   from statsmodels.tsa.arima.model import ARIMA
-   model=ARIMA(df['Sales'],order=(1,1,1))
-   model_fit=model.fit()
-   warnings.filterwarnings("ignore")
-   model_fit.summary()
-   df['forecast']=model_fit.predict(start=90,end=103,dynamic=True)
-   df[['Sales','forecast']].plot(figsize=(12,8))
-   model=sm.tsa.statespace.SARIMAX(df['Sales'],order=(1, 1, 1),seasonal_order=(1,1,1,12))
-   results=model.fit()
-   df['forecast']=results.predict(start=90,end=103,dynamic=True)
-   df[['Sales','forecast']].plot(figsize=(12,8))
-   from pandas.tseries.offsets import DateOffset
-   future_dates=[df.index[-1]+ DateOffset(months=x)for x in range(0,a)]
-   future_datest_df=pd.DataFrame(index=future_dates[1:],columns=df.columns)
-   future_datest_df.tail()
-   future_df=pd.concat([df,future_datest_df])
-   future_df['forecast'] = results.predict(start = 104, end = 120, dynamic= True)  
-   dff = future_df.loc[future_df['forecast'].notnull()]
-   return dff['forecast'].to_json(orient="records")
+    global stock
+    global sdate
+    global edate
+    stock=request.values['stock']
+    sdate=request.values['sdate']
+    edate=request.values['edate']
+    print(stock)
+    print(sdate)
+    print(edate)
+    # start = sdate
+    # end = edate
+    df = yf.download('GOOGL', start=sdate, end=edate)
+    prediction_range = .6
+    plt.figure(figsize=(16,8))
+    plt.title('Close Price History')
+    plt.plot(df['Close'])
+    plt.xlabel('Date',fontsize=18)
+    plt.ylabel('Close Price USD($)',fontsize=18)
+    data=df.filter(['Close'])
+    dataset=data.values
+    training_data_len= math.ceil(len(dataset) * prediction_range)
+
+    #scale the data
+    scaler=MinMaxScaler(feature_range=(0,1))
+    scaled_data=scaler.fit_transform(dataset)
+    scaled_data
+    training_data_len, len(dataset)
+    train_data=scaled_data[0:training_data_len,:]
+    x_train =[]
+    y_train=[]
+    for i in range(60,len(train_data)):
+      x_train.append(train_data[i-60:i,0])
+      y_train.append(train_data[i,0])
+      if i<=60:
+
+        print(x_train)
+        print(y_train)
+        print()
+    x_train= np.array(x_train)
+    y_train=np.array(y_train)
+    x_train.shape   
+    x_train=np.reshape(x_train,(x_train.shape[0],x_train.shape[1],1))
+    x_train.shape
+    model=Sequential()
+    model.add(LSTM(50,return_sequences=True,input_shape=(x_train.shape[1],1)))
+    model.add(LSTM(50,return_sequences=False))
+    model.add(Dense(25))
+    model.add(Dense(1))
+    model.compile(optimizer='adam',loss='mean_squared_error')
+    model.fit(x_train,y_train,batch_size=1,epochs=2)
+    test_data=scaled_data[training_data_len - 60:,:]
+    x_test=[]
+    y_test=dataset[training_data_len:,:]
+    for i in range(60,len(test_data)):
+      x_test.append(test_data[i-60:i,0])
+    x_test=np.array(x_test)  
+    x_test=np.reshape(x_test,(x_test.shape[0],x_test.shape[1],1))
+    predictions=model.predict(x_test)
+    predictions=scaler.inverse_transform(predictions)
+    rmse=np.sqrt( np.mean((predictions - y_test)**2))
+    rmse
+    train=data[:training_data_len]
+    valid=data[training_data_len:]
+    valid['Predictions']=predictions
+
+    #visualize the data
+    plt.figure(figsize=(16,8))
+    plt.title('Model')
+    plt.xlabel('Date',fontsize=18)
+    plt.ylabel('Close Price USD($)',fontsize=18)
+    plt.plot(train['Close'])
+    plt.plot(valid[['Close','Predictions']])
+    plt.legend(['Train','Val','Predictions'],loc='lower right')
+    plt.show()
+
+    return 'kamalakannan'
  return endpoints
-
-
-     
-
-
-   
-
-
- 
