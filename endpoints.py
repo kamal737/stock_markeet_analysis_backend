@@ -19,6 +19,7 @@ from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import Dense,LSTM
 import matplotlib.pyplot as plt
+from twilio.rest import Client 
 plt.style.use('fivethirtyeight')
 import yfinance as yf
 yf.pdr_override()
@@ -28,6 +29,28 @@ yf.pdr_override()
 
 
 def project_api_routes(endpoints):
+ 
+
+ @endpoints.route('/otp',methods=['GET'])
+
+ def get_otp():
+  
+ 
+  account_sid = '' 
+  auth_token = '' 
+  client = Client(account_sid, auth_token) 
+    
+  message = client.messages.create(  
+                                  from_='',
+                                  body='kamalakannnnnnna',
+                                  to='+919361385989' 
+                              ) 
+    
+  print(message.sid)
+   
+
+  return 'otp sent successfully'
+ 
 
  @endpoints.route('/upload',methods=['POST','GET'])
 
