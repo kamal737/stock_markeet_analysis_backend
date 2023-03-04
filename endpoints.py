@@ -31,25 +31,28 @@ yf.pdr_override()
 def project_api_routes(endpoints):
  
 
- @endpoints.route('/otp',methods=['GET'])
+ @endpoints.route('/otp',methods=['POST'])
 
  def get_otp():
   
- 
-  account_sid = '' 
-  auth_token = '' 
-  client = Client(account_sid, auth_token) 
+  if request.method == 'POST':
+    global otpnum
+    otpnum=request.values['otp']
+    print(otpnum)
+    account_sid = 'ACb21501b89a7bd89c0ccfbfd6e26ff131' 
+    auth_token = 'd6479d113a45a295f4d9abb104c67bff' 
+    client = Client(account_sid, auth_token) 
+    otp2='Please login using this otp {otpnum}'
+    message = client.messages.create(  
+                                    from_='+15677024271',
+                                    body = otp2,
+                                    to='+919361385989' 
+                                ) 
+      
+    print(message.sid)
     
-  message = client.messages.create(  
-                                  from_='',
-                                  body='kamalakannnnnnna',
-                                  to='+919361385989' 
-                              ) 
-    
-  print(message.sid)
-   
 
-  return 'otp sent successfully'
+    return 'otp sent successfully'
  
 
  @endpoints.route('/upload',methods=['POST','GET'])
